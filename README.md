@@ -5,6 +5,29 @@ O **EletroMap** é uma aplicação Full-Stack desenvolvida para facilitar a vida
 ![Status do Projeto](https://img.shields.io/badge/Status-Concluído-green) ![React](https://img.shields.io/badge/Frontend-React%20%2B%20Vite-blue) ![Node](https://img.shields.io/badge/Backend-Node.js-green)
 
 ---
+## APIs e Serviços Externos
+
+O projeto integra serviços de terceiros para garantir dados precisos e inteligência:
+
+### 1. Google Maps Platform
+Utilizamos três APIs principais do Google:
+* **Maps JavaScript API:** Para renderização do mapa interativo e marcadores.
+* **Places API:** Para busca de locais (Text Search, Nearby Search) e detalhes (Place Details).
+* **Directions API:** Para cálculo de rotas e desenho do trajeto (polilinha) no mapa.
+
+### 2. Groq Cloud (Inteligência Artificial)
+* **Modelo:** Llama 3 (`llama-3.1-8b-instant`).
+* **Função:** Atua como um interpretador de linguagem natural. Recebe o texto do usuário (ex: "quero café") e os filtros selecionados, convertendo-os em parâmetros técnicos otimizados para a busca no Google Maps.
+
+
+
+
+
+
+
+
+
+
 
 ## Funcionalidades Principais
 
@@ -14,7 +37,7 @@ O **EletroMap** é uma aplicação Full-Stack desenvolvida para facilitar a vida
 * **Detalhes em Tempo Real:** Exibe informações atualizadas do Google Maps, como horário de funcionamento ("Aberto agora") e telefone.
 * **Interface Responsiva:** Layout moderno que se adapta a computadores e dispositivos móveis (painel lateral vira "gaveta" no celular).
 
-## 📋 Requisitos do Sistema
+##  Requisitos do Sistema
 
 Abaixo estão listados os requisitos funcionais e não funcionais que guiaram o desenvolvimento do EletroMap.
 
