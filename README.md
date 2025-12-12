@@ -14,7 +14,33 @@ O **EletroMap** é uma aplicação Full-Stack desenvolvida para facilitar a vida
 * **Detalhes em Tempo Real:** Exibe informações atualizadas do Google Maps, como horário de funcionamento ("Aberto agora") e telefone.
 * **Interface Responsiva:** Layout moderno que se adapta a computadores e dispositivos móveis (painel lateral vira "gaveta" no celular).
 
----
+## 📋 Requisitos do Sistema
+
+Abaixo estão listados os requisitos funcionais e não funcionais que guiaram o desenvolvimento do EletroMap.
+
+### 1. Requisitos Funcionais (RF)
+*O que o sistema é capaz de fazer:*
+
+* **RF-01 (Busca Inteligente):** O sistema utiliza Inteligência Artificial (Groq) para interpretar buscas em linguagem natural (ex: *"posto perto do shopping"*).
+* **RF-02 (Filtros):** O usuário pode filtrar resultados por critérios técnicos, como *"Abertos agora"* e *"Carregador Rápido (CCS)"*.
+* **RF-03 (Visualização no Mapa):** Exibir os resultados como pinos interativos no Google Maps.
+* **RF-04 (Geolocalização):** Obter a posição atual do usuário para centralizar o mapa e traçar rotas.
+* **RF-05 (Rotas e Navegação):** Traçar o caminho entre a posição do usuário e um destino selecionado.
+* **RF-06 (Busca no Trajeto):** Identificar automaticamente postos de recarga situados ao longo da rota traçada (raio de 20km do ponto médio).
+* **RF-07 (Detalhes do Local):** Exibir informações detalhadas (horário em tempo real, telefone) ao clicar num posto.
+* **RF-08 (Gestão de Favoritos - CRUD):**
+    * **C**riar: Salvar um posto na lista de favoritos.
+    * **L**er: Visualizar a lista de postos salvos.
+    * **E**xcluir: Remover um posto da lista.
+
+### 2. Requisitos Não Funcionais (RNF)
+*Critérios de qualidade e restrições técnicas:*
+
+* **RNF-01 (Segurança):** As chaves de API (Google e Groq) são armazenadas exclusivamente no Backend (arquivo `.env`) e nunca expostas ao cliente.
+* **RNF-02 (Desempenho - SPA):** A aplicação opera como uma Single Page Application (React + Vite), garantindo navegação fluida sem recarregamentos.
+* **RNF-03 (Otimização de API):** O Backend utiliza *Field Masking* nas requisições ao Google Maps, solicitando apenas os dados estritamente necessários para economizar banda e custos.
+* **RNF-04 (Usabilidade & Responsividade):** A interface adapta-se automaticamente a diferentes tamanhos de tela (Desktop e Mobile) e fornece feedback visual (loading) durante o processamento.
+* **RNF-05 (Tratamento de Erros):** O sistema trata falhas de comunicação com as APIs externas de forma graciosa, informando o usuário sem quebrar a aplicação.
 
 ## Endpoints da API (Backend)
 
