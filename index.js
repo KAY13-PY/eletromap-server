@@ -3,84 +3,56 @@ const express = require('express');
 const cors = require('cors');
 const { Client } = require('@googlemaps/google-maps-services-js');
 const Groq = require('groq-sdk');
-const haversine = require('haversine'); // Deixamos ele aqui para a outra rota
+const haversine = require('haversine');
 
 const app = express();
 const PORT = 3001;
 
-// --- Configuração dos Clientes (sem mudança) ---
-const googleMapsClient = new Client({});
-const mapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
+// --- 1. MEMÓRIA DOS FAVORITOS (In-Memory Database) ---
+let favoritos = []; 
+// -----------------------------------------------------
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
-// ----------------------------------
+const googleMapsClient = new Client({});
+// Assegure-se de que o seu arquivo .env tem estas chaves
+const mapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 app.use(cors());
 app.use(express.json());
 
-
+// --- 2. ROTA DE BUSCA INTELIGENTE (IA + Google) ---
 app.post('/api/search', async (req, res) => {
   try {
-
     const { query: userQuery, filters: userFilters } = req.body;
-    
-    console.log(`Servidor: Recebi a busca por: "${userQuery}"`);
-    console.log(`Servidor: Com os filtros:`, userFilters);
+    console.log(`🔎 Buscando por: "${userQuery}"`);
 
+    // Prepara o texto dos filtros para a IA
     let filterText = "";
     if (userFilters && userFilters.length > 0) {
-      filterText = `
-        Por favor, OBRIGATORIAMENTE, inclua estes filtros na sua busca:
-        - ${userFilters.join('\n- ')}
-        
-        Exemplos de como incluir os filtros:
-        - "Abertos agora" significa que a busca deve incluir "aberto agora".
-        - "Carregador Rápido (CCS)" significa que a busca deve incluir "carregador CCS" ou "recarga rápida".
-      `;
+      filterText = `Obrigatoriamente inclua estes filtros técnicos na busca: ${userFilters.join(', ')}.`;
     }
 
+    // Prompt para a IA (Groq)
     const prompt = `
-      Analise o pedido do usuário e transforme-o em um termo de busca ideal para a API do Google Maps.
-      O pedido do usuário é: "${userQuery}"
-      
-      ${filterText} 
-      
-      Responda APENAS com um objeto JSON com duas chaves:
-      1. "query": O termo de busca otimizado (ex: "estação de carregamento CCS com café aberto agora").
-      2. "location": O local da busca (ex: "Campinas - SP"). Se o usuário não especificar, use "Campinas - SP" como padrão.
+      Você é um assistente de mapas. O usuário quer buscar: "${userQuery}".
+      ${filterText}
+      Converta isso para um termo de busca otimizado para o Google Maps Places API.
+      Responda APENAS um objeto JSON neste formato exato:
+      {"query": "termo otimizado", "location": "Campinas - SP"}
+      Se o usuário não disser o local, use "Campinas - SP".
     `;
-
-    console.log("Servidor: Perguntando à IA (Groq) com o novo prompt...");
     
-    // CHAMA A IA
     const aiResult = await groq.chat.completions.create({
-      messages: [
-        {
-          role: 'system',
-          content: 'Você é um assistente que SÓ retorna código JSON. Sem "```json" ou explicações.'
-        },
-        {
-          role: 'user',
-          content: prompt, 
-        },
-      ],
-      model: 'llama-3.1-8b-instant', 
+      messages: [{ role: 'user', content: prompt }],
+      model: 'llama-3.1-8b-instant',
       response_format: { type: 'json_object' },
     });
 
-    const aiResponseText = aiResult.choices[0].message.content;
-    console.log("Servidor: IA respondeu ->", aiResponseText);
-
-    // 4. Converte a resposta
-    const jsonResponse = JSON.parse(aiResponseText);
-    
+    const jsonResponse = JSON.parse(aiResult.choices[0].message.content);
     const intelligentQuery = `${jsonResponse.query} em ${jsonResponse.location}`;
-    console.log(`Servidor: IA traduziu para: "${intelligentQuery}"`);
+    console.log(`🤖 IA traduziu para: "${intelligentQuery}"`);
 
-    // 5. Busca no Google Maps
-    console.log("Servidor: Buscando no Google Maps...");
+    // Busca Textual no Google Maps
     const mapsResponse = await googleMapsClient.textSearch({
       params: {
         query: intelligentQuery,
@@ -90,7 +62,7 @@ app.post('/api/search', async (req, res) => {
       timeout: 5000,
     });
 
-    // 6. Formata e envia
+    // Formata os resultados para o Frontend
     const stations = mapsResponse.data.results.map(place => ({
       id: place.place_id,
       name: place.name,
@@ -103,39 +75,36 @@ app.post('/api/search', async (req, res) => {
     res.json(stations);
 
   } catch (error) {
-    console.error("Erro no servidor (/api/search):", error.message || error);
+    console.error("Erro na busca:", error.message);
     res.status(500).json({ message: "Erro ao processar a busca" });
   }
 });
 
-// --- ROTA DE BUSCA NO TRAJETO ---
+// --- 3. ROTA DE BUSCA NO TRAJETO ---
 app.post('/api/search-along-route', async (req, res) => {
   try {
     const { origin, destination } = req.body;
-    console.log("Servidor: Recebi pedido de busca no trajeto.");
-
     if (!origin || !destination) {
       return res.status(400).json({ message: "Origem e destino são obrigatórios." });
     }
-    const haversineOrigin = { latitude: origin.lat, longitude: origin.lng };
-    const haversineDestination = { latitude: destination.lat, longitude: destination.lng };
+
+    // Calcula o ponto médio da viagem
     const midpoint = {
       latitude: (origin.lat + destination.lat) / 2,
       longitude: (origin.lng + destination.lng) / 2,
     };
-    const distanceInMeters = haversine(haversineOrigin, haversineDestination, { unit: 'meter' });
-    const radius = Math.min(distanceInMeters / 2, 20000); 
-    console.log(`Servidor: Buscando postos perto de ${JSON.stringify(midpoint)} com raio de ${Math.round(radius)}m`);
-
+    
+    // Busca postos num raio de 20km do ponto médio
     const mapsResponse = await googleMapsClient.placesNearby({
       params: {
         location: midpoint,
-        radius: radius,
+        radius: 20000, // 20km
         keyword: 'posto de carregamento elétrico', 
         key: mapsApiKey,
       },
       timeout: 5000,
     });
+
     const stations = mapsResponse.data.results.map(place => ({
       id: place.place_id,
       name: place.name,
@@ -144,25 +113,24 @@ app.post('/api/search-along-route', async (req, res) => {
       user_ratings_total: place.user_ratings_total,
       location: place.geometry.location,
     }));
+
     res.json(stations);
   } catch (error) {
-    console.error("Erro no servidor (/api/search-along-route):", error.message || error);
-    res.status(500).json({ message: "Erro ao processar a busca no trajeto" });
+    console.error("Erro no trajeto:", error.message);
+    res.status(500).json({ message: "Erro ao buscar no trajeto" });
   }
 });
 
-// --- ROTA DE DETALHES DO LOCAL (shimas-) ---
+// --- 4. ROTA DE DETALHES (Pop-up) ---
 app.post('/api/place-details', async (req, res) => {
   try {
     const { placeId } = req.body;
-    console.log(`Servidor: Recebi pedido de detalhes para o Place ID: ${placeId}`);
-    if (!placeId) {
-      return res.status(400).json({ message: "Place ID é obrigatório." });
-    }
+    if (!placeId) return res.status(400).json({ message: "ID do local necessário" });
+
     const response = await googleMapsClient.placeDetails({
       params: {
         place_id: placeId,
-        fields: ['name', 'formatted_address', 'formatted_phone_number', 'opening_hours', 'website'],
+        fields: ['name', 'formatted_address', 'formatted_phone_number', 'opening_hours'],
         key: mapsApiKey,
         language: 'pt-BR',
       },
@@ -170,12 +138,39 @@ app.post('/api/place-details', async (req, res) => {
     });
     res.json(response.data.result);
   } catch (error) {
-    console.error("Erro no servidor (/api/place-details):", error.message || error);
-    res.status(500).json({ message: "Erro ao processar a busca no local" });
+    console.error("Erro nos detalhes:", error.message);
+    res.status(500).json({ message: "Erro ao buscar detalhes" });
   }
+}); 
+//  5. ROTAS DE FAVORITOS (CRUD) ---
+
+// [R] Read (Ler)
+app.get('/api/favorites', (req, res) => {
+  res.json(favoritos);
 });
 
-// --- Inicia o servidor ---
+// Create (Criar/Salvar)
+app.post('/api/favorites', (req, res) => {
+  const posto = req.body;
+  // Verifica se já existe para não duplicar
+  const existe = favoritos.find(fav => fav.id === posto.id);
+  
+  if (!existe) {
+    favoritos.push(posto);
+    console.log(`⭐ Favorito salvo: ${posto.name}`);
+  }
+  res.json(favoritos);
+});
+
+// [D] Delete (Apagar)
+app.delete('/api/favorites/:id', (req, res) => {
+  const { id } = req.params;
+  favoritos = favoritos.filter(posto => posto.id !== id);
+  console.log(`🗑️ Favorito removido ID: ${id}`);
+  res.json(favoritos);
+});
+
+// Inicia o servidor
 app.listen(PORT, () => {
-  console.log(`Servidor backend (com GROQ + Filtros!) rodando na porta ${PORT}`);
+  console.log(`🔥 Servidor (Nível 9 Completo) rodando na porta ${PORT}`);
 });
